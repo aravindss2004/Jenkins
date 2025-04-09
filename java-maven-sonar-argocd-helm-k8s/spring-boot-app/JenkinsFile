@@ -1,26 +1,32 @@
 pipeline {
   agent any
+
   environment {
-    SONAR_URL = "http://34.201.116.83:9000"
+    // Use host.docker.internal for accessing localhost from inside Docker containers
+    SONAR_URL = "http://host.docker.internal:9000"
     GIT_REPO_NAME = "Jenkins-Zero-To-Hero"
     GIT_USER_NAME = "iam-veeramalla"
+    DOCKER_IMAGE = "abhishekf5/ultimate-cicd:${BUILD_NUMBER}"
   }
 
   stages {
     stage('Checkout') {
       steps {
-        sh 'echo ✅ Checkout stage'
+        echo '✅ Checkout stage'
         // Uncomment below if using actual repo
         // git branch: 'main', url: 'https://github.com/aravindss2004/Jenkins'
       }
     }
 
-  stage('Build and Test') {
-    steps {
-      sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
+    stage('Build and Test') {
+      steps {
+        script {
+          docker.image('abhishekf5/maven-abhishek-docker-agent:v1').inside('--user root -v //var/run/docker.sock:/var/run/docker.sock') {
+            sh 'cd java-maven-sonar-argocd-helm-k8s/spring-boot-app && mvn clean package'
+          }
+        }
+      }
     }
-  }
-
 
     stage('Static Code Analysis') {
       steps {
@@ -38,9 +44,6 @@ pipeline {
     }
 
     stage('Build and Push Docker Image') {
-      environment {
-        DOCKER_IMAGE = "abhishekf5/ultimate-cicd:${BUILD_NUMBER}"
-      }
       steps {
         script {
           docker.image('abhishekf5/maven-abhishek-docker-agent:v1').inside('--user root -v //var/run/docker.sock:/var/run/docker.sock') {
