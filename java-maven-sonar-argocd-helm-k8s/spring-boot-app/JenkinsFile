@@ -2,7 +2,14 @@ pipeline {
   agent {
     docker {
       image 'abhishekf5/maven-abhishek-docker-agent:v1'
-      args "--user root -v ${env.WORKSPACE}:/home/jenkins/agent -v /var/run/docker.sock:/var/run/docker.sock -w /home/jenkins/agent"
+      args "--user root -v /var/run/docker.sock:/var/run/docker.sock -v ${env.WORKSPACE}:/home/jenkins/agent -w /home/jenkins/agent"
+    }
+  }
+  stages {
+    stage('Debug Paths') {
+      steps {
+        sh 'pwd && ls -la'
+      }
     }
   }
   stages {
