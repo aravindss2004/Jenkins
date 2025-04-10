@@ -1,12 +1,9 @@
 pipeline {
-    agent {
+   agent {
         docker {
-            // Use a Maven image with JDK 17 installed.
             image 'maven:3.8.1-openjdk-17'
-            // Adjust the Docker arguments:
-            //   - Mount the Docker socket.
-            //   - Set the working directory to the Linux equivalent of your Windows workspace.
-            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Arvind/.jenkins/workspace/CICD'
+            reuseNode true
+            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
         }
     }
 
