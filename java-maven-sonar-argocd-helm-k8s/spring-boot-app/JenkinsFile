@@ -2,11 +2,11 @@ pipeline {
     agent {
         docker {
             image 'maven:3.8.1-openjdk-17'
-            reuseNode true
-            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
+            // Set a custom workspace in Linux style.
+            customWorkspace '/c/Users/Aravind/.jenkins/workspace/CICD'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
         }
     }
-    // rest of your pipeline
     environment {
         SONARQUBE     = credentials('sonarqube')
         DOCKER_CRED   = credentials('docker-cred')
@@ -16,7 +16,9 @@ pipeline {
     }
     stages {
         stage('Checkout SCM') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
         stage('Build and Test') {
             steps {
@@ -43,7 +45,6 @@ pipeline {
                     script {
                         def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
                         sh "docker build -t ${imageTag} ."
-                        // Use credentials for Docker login
                         withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                             sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
                         }
