@@ -1,31 +1,23 @@
 pipeline {
-   agent {
-       docker {
-           image 'maven:3.8.1-openjdk-17'
-           reuseNode true  // Prevent Jenkins from adding the Windows workspace mapping.
-           args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
-       }
-   }
-
-
-    environment {
-        // Using Jenkins credentials for SonarQube, DockerHub, and GitHub.
-        SONARQUBE    = credentials('sonarqube')
-        DOCKER_CRED  = credentials('docker-cred')
-        GITHUB       = credentials('github')
-        // Define your SonarQube server URL (change if not local).
-        SONARQUBE_URL = 'http://localhost:9000'
-        // Define your Docker image base name.
-        IMAGE_NAME   = 'aravindss2004/spring-boot-app'
+    agent {
+        docker {
+            image 'maven:3.8.1-openjdk-17'
+            reuseNode true
+            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
+        }
     }
-
+    // rest of your pipeline
+    environment {
+        SONARQUBE     = credentials('sonarqube')
+        DOCKER_CRED   = credentials('docker-cred')
+        GITHUB        = credentials('github')
+        SONARQUBE_URL = 'http://localhost:9000'
+        IMAGE_NAME    = 'aravindss2004/spring-boot-app'
+    }
     stages {
         stage('Checkout SCM') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
-
         stage('Build and Test') {
             steps {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
@@ -33,7 +25,6 @@ pipeline {
                 }
             }
         }
-
         stage('Static Code Analysis') {
             steps {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
@@ -46,40 +37,31 @@ pipeline {
                 }
             }
         }
-
         stage('Build and Push Docker Image') {
             steps {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
                     script {
-                        // Define the image tag using Jenkins' BUILD_NUMBER
                         def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
-                        // Build the Docker image
                         sh "docker build -t ${imageTag} ."
-                        // Log in to Docker Hub using usernamePassword credentials
+                        // Use credentials for Docker login
                         withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                             sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
                         }
-                        // Push the Docker image
                         sh "docker push ${imageTag}"
                     }
                 }
             }
         }
-
         stage('Update Deployment File') {
             steps {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
                     script {
                         def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
-                        // Update the deployment file with the new image tag.
-                        // Adjust the sed command based on your file structure.
                         sh "sed -i 's|image: .*|image: ${imageTag}|' k8s/deployment.yaml"
-                        // Set Git configuration and push changes to GitHub.
                         sh '''
                             git config user.email "aravind2004@gmail.com"
-                            git config user.name "aravindss"
+                            git config user.name "aravindss2004"
                         '''
-                        // Commit and push the change
                         withCredentials([usernamePassword(credentialsId: 'github', usernameVariable: 'GITHUB_USR', passwordVariable: 'GITHUB_PSW')]) {
                             sh """
                                 git add k8s/deployment.yaml
