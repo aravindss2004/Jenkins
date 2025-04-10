@@ -1,11 +1,12 @@
 pipeline {
    agent {
-        docker {
-            image 'maven:3.8.1-openjdk-17'
-            reuseNode true
-            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
-        }
-    }
+       docker {
+           image 'maven:3.8.1-openjdk-17'
+           reuseNode true  // Prevent Jenkins from adding the Windows workspace mapping.
+           args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Aravind/.jenkins/workspace/CICD'
+       }
+   }
+
 
     environment {
         // Using Jenkins credentials for SonarQube, DockerHub, and GitHub.
