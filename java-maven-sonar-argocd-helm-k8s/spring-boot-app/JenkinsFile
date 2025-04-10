@@ -1,9 +1,9 @@
 pipeline {
-  agent {
-    docker {
-      image 'abhishekf5/maven-abhishek-docker-agent:v1'
-      args '--user root -v /var/run/docker.sock:/var/run/docker.sock' // mount Docker socket to access the host's Docker daemon
-    }
+ agent any
+
+  environment {
+        SONAR_URL = 'http://host.docker.internal:9000'
+        DOCKER_IMAGE = "aravindss2004/spring-boot-app"
   }
   stages {
     stage('Checkout') {
