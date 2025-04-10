@@ -1,21 +1,30 @@
 pipeline {
     agent {
         docker {
+            // Use a Maven image with JDK 17 installed.
             image 'maven:3.8.1-openjdk-17'
+            // Adjust the Docker arguments:
+            //   - Mount the Docker socket.
+            //   - Set the working directory to the Linux equivalent of your Windows workspace.
+            args '-v /var/run/docker.sock:/var/run/docker.sock -w /c/Users/Arvind/.jenkins/workspace/CICD'
         }
     }
 
     environment {
-        SONARQUBE = credentials('sonarqube')         // Token stored in Jenkins credentials
-        SONARQUBE_URL = 'http://localhost:9000'      // Your local SonarQube server
-        DOCKER_CREDENTIALS_ID = 'docker-cred'
-        GITHUB_CREDENTIALS_ID = 'github'
+        // Using Jenkins credentials for SonarQube, DockerHub, and GitHub.
+        SONARQUBE    = credentials('sonarqube')
+        DOCKER_CRED  = credentials('docker-cred')
+        GITHUB       = credentials('github')
+        // Define your SonarQube server URL (change if not local).
+        SONARQUBE_URL = 'http://localhost:9000'
+        // Define your Docker image base name.
+        IMAGE_NAME   = 'aravindss2004/spring-boot-app'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
-                echo 'Checking out code...'
+                checkout scm
             }
         }
 
@@ -32,9 +41,9 @@ pipeline {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
                     sh """
                         mvn sonar:sonar \\
-                            -Dsonar.projectKey=spring-boot-app \\
-                            -Dsonar.host.url=${SONARQUBE_URL} \\
-                            -Dsonar.login=${SONARQUBE}
+                          -Dsonar.projectKey=spring-boot-app \\
+                          -Dsonar.host.url=${SONARQUBE_URL} \\
+                          -Dsonar.login=${SONARQUBE}
                     """
                 }
             }
@@ -42,13 +51,18 @@ pipeline {
 
         stage('Build and Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                        sh """
-                            docker build -t $DOCKER_USER/spring-boot-app:latest .
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                            docker push $DOCKER_USER/spring-boot-app:latest
-                        """
+                dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
+                    script {
+                        // Define the image tag using Jenkins' BUILD_NUMBER
+                        def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
+                        // Build the Docker image
+                        sh "docker build -t ${imageTag} ."
+                        // Log in to Docker Hub using usernamePassword credentials
+                        withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                            sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
+                        }
+                        // Push the Docker image
+                        sh "docker push ${imageTag}"
                     }
                 }
             }
@@ -57,22 +71,24 @@ pipeline {
         stage('Update Deployment File') {
             steps {
                 dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                    sh 'sed -i "s|image:.*|image: $DOCKER_USER/spring-boot-app:latest|" k8s/deployment.yaml'
-                }
-            }
-        }
-
-        stage('Deploy using ArgoCD') {
-            steps {
-                sshagent (credentials: ["${GITHUB_CREDENTIALS_ID}"]) {
-                    dir('java-maven-sonar-argocd-helm-k8s/spring-boot-app') {
-                        sh """
-                            git config user.name "aravindss2004"
-                            git config user.email "ssaravind2004@gmail.com"
-                            git add k8s/deployment.yaml
-                            git commit -m "Updated image to latest"
-                            git push origin main
-                        """
+                    script {
+                        def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
+                        // Update the deployment file with the new image tag.
+                        // Adjust the sed command based on your file structure.
+                        sh "sed -i 's|image: .*|image: ${imageTag}|' k8s/deployment.yaml"
+                        // Set Git configuration and push changes to GitHub.
+                        sh '''
+                            git config user.email "aravind2004@gmail.com"
+                            git config user.name "aravindss"
+                        '''
+                        // Commit and push the change
+                        withCredentials([usernamePassword(credentialsId: 'github', usernameVariable: 'GITHUB_USR', passwordVariable: 'GITHUB_PSW')]) {
+                            sh """
+                                git add k8s/deployment.yaml
+                                git commit -m "Update deployment image to ${imageTag}"
+                                git push https://${GITHUB_USR}:${GITHUB_PSW}@github.com/aravindss2004/Jenkins.git HEAD:main
+                            """
+                        }
                     }
                 }
             }
